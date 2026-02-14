@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
-import { Scale, BarChart3, FileCheck, Sparkles, LogIn, ExternalLink, Heart } from "lucide-react";
+import { Scale, BarChart3, FileCheck, Sparkles, LogIn, ExternalLink, Heart, Zap } from "lucide-react";
 
 export function LoginPage() {
   const { signInWithGoogle, loading } = useAuth();
@@ -12,7 +12,7 @@ export function LoginPage() {
       <div className="w-full max-w-md flex-1 flex flex-col justify-center">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#1a4d2e] to-[#2d5a3d] flex items-center justify-center shadow-lg">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914] flex items-center justify-center shadow-lg">
             <Sparkles className="h-10 w-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-[#1a3d2e] mb-2">PiriChat</h1>
@@ -21,48 +21,66 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Features - 3 Agents */}
+        {/* Features */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-[#d4c8b0]">
-          <h2 className="text-lg font-semibold text-[#1a3d2e] mb-4 text-center">
-            Agentes de IA Especializados
-          </h2>
-          
-          <div className="space-y-3">
-            {/* Legal Agent */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-[#f0ebe0]">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#1a4d2e] to-[#2d5a3d] flex items-center justify-center shrink-0">
-                <Scale className="h-5 w-5 text-white" />
+          {/* Orquestrador - Destaque */}
+          <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-[#1a4d2e]/10 via-[#2d5a3d]/10 to-[#8b6914]/10 border border-[#1a4d2e]/20">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914] flex items-center justify-center shrink-0">
+                <Zap className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h3 className="font-medium text-[#1a3d2e]">Assistente Jurídico ANS</h3>
+                <h3 className="font-medium text-[#1a3d2e] flex items-center gap-1">
+                  Orquestrador Inteligente
+                  <span className="text-[8px] px-1.5 py-0.5 bg-[#1a4d2e] text-white rounded-full">NOVO</span>
+                </h3>
                 <p className="text-sm text-[#5a6b5e]">
-                  Direito e regulação da saúde suplementar. RN, RI, SUSEP e legislação.
+                  A IA escolhe automaticamente o melhor especialista para sua pergunta.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-sm font-medium text-[#5a6b5e] mb-3 text-center uppercase tracking-wider">
+            Especialistas Disponíveis
+          </h2>
+          
+          <div className="space-y-2">
+            {/* Legal Agent */}
+            <div className="flex items-start gap-3 p-2.5 rounded-lg bg-[#f0ebe0]">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1a4d2e] to-[#2d5a3d] flex items-center justify-center shrink-0">
+                <Scale className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h3 className="font-medium text-sm text-[#1a3d2e]">PiriJurídico</h3>
+                <p className="text-xs text-[#5a6b5e]">
+                  ANS, RN, RI, SUSEP e legislação
                 </p>
               </div>
             </div>
 
             {/* Contract Agent */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-[#f5e6c8]/50">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#8b6914] to-[#a67c00] flex items-center justify-center shrink-0">
-                <FileCheck className="h-5 w-5 text-white" />
+            <div className="flex items-start gap-3 p-2.5 rounded-lg bg-[#f5e6c8]/50">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8b6914] to-[#a67c00] flex items-center justify-center shrink-0">
+                <FileCheck className="h-4 w-4 text-white" />
               </div>
               <div>
-                <h3 className="font-medium text-[#1a3d2e]">Assistente de Contratos</h3>
-                <p className="text-sm text-[#5a6b5e]">
-                  Gestão, gaps, ofensores e necessidades contratuais.
+                <h3 className="font-medium text-sm text-[#1a3d2e]">PiriContratos</h3>
+                <p className="text-xs text-[#5a6b5e]">
+                  Gaps, ofensores e necessidades contratuais
                 </p>
               </div>
             </div>
 
             {/* Commercial Agent */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-[#e8e0d0]/50">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#3d5a6b] to-[#4a6b7c] flex items-center justify-center shrink-0">
-                <BarChart3 className="h-5 w-5 text-white" />
+            <div className="flex items-start gap-3 p-2.5 rounded-lg bg-[#e8e0d0]/50">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3d5a6b] to-[#4a6b7c] flex items-center justify-center shrink-0">
+                <BarChart3 className="h-4 w-4 text-white" />
               </div>
               <div>
-                <h3 className="font-medium text-[#1a3d2e]">Assistente Comercial</h3>
-                <p className="text-sm text-[#5a6b5e]">
-                  Análises estatísticas, tendências e insights comerciais.
+                <h3 className="font-medium text-sm text-[#1a3d2e]">PiriComercial</h3>
+                <p className="text-xs text-[#5a6b5e]">
+                  Análises, tendências e insights de mercado
                 </p>
               </div>
             </div>

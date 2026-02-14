@@ -8,12 +8,15 @@ export interface Message {
   content: string;
   createdAt: Date;
   sources?: string[];
+  agentUsed?: AgentType; // Qual agente respondeu (útil no modo orquestrado)
 }
+
+export type AgentType = 'legal' | 'commercial' | 'contract' | 'auto';
 
 export interface Chat {
   id: string;
   title: string;
-  agentType: 'legal' | 'commercial' | 'contract';
+  agentType: AgentType;
   messages: Message[];
   clientId?: string;
   createdAt: Date;
@@ -47,10 +50,12 @@ export interface User {
   role: 'broker' | 'admin';
 }
 
-// Agent Types
-export type AgentType = 'legal' | 'commercial' | 'contract';
-
+// Agent Configuration
 export const AGENT_CONFIG: Record<AgentType, { name: string; description: string }> = {
+  auto: {
+    name: 'Orquestrador Inteligente',
+    description: 'A IA escolhe o melhor especialista automaticamente',
+  },
   legal: {
     name: 'Assistente Jurídico ANS',
     description: 'Especialista em direito e regulação da saúde suplementar',
@@ -126,7 +131,9 @@ export const useChatStore = create<ChatState>()(
         const agentName = AGENT_CONFIG[agentType].name;
         const newChat: Chat = {
           id,
-          title: `Nova Conversa - ${agentName}`,
+          title: agentType === 'auto' 
+            ? 'Nova Conversa Inteligente' 
+            : `Nova Conversa - ${agentName}`,
           agentType,
           messages: [],
           clientId,

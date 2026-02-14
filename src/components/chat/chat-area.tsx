@@ -1,10 +1,9 @@
 "use client";
 
-import { useChatStore, useCurrentChat, useChatMessages, AgentType } from "@/store/chat-store";
+import { useChatStore, useCurrentChat, useChatMessages, AgentType, AGENT_CONFIG } from "@/store/chat-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Menu,
@@ -15,45 +14,38 @@ import {
   Sparkles,
   FileText,
   User,
+  ArrowRightLeft,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 
-const agentInfo: Record<AgentType, {
+const agentInfo: Record<Exclude<AgentType, 'auto'>, {
   name: string;
   description: string;
   icon: typeof Scale;
   gradient: string;
   bgColor: string;
-  hoverColor: string;
-  lightBg: string;
 }> = {
   legal: {
-    name: "Assistente Jurídico ANS",
+    name: "PiriJurídico",
     description: "Especialista em direito e regulação da saúde suplementar",
     icon: Scale,
     gradient: "from-[#1a4d2e] to-[#2d5a3d]",
     bgColor: "bg-[#1a4d2e]",
-    hoverColor: "hover:bg-[#153d24]",
-    lightBg: "bg-[#d4e5d8]",
   },
   contract: {
-    name: "Assistente de Contratos",
+    name: "PiriContratos",
     description: "Gestão, gaps, ofensores e necessidades contratuais",
     icon: FileCheck,
     gradient: "from-[#8b6914] to-[#a67c00]",
     bgColor: "bg-[#8b6914]",
-    hoverColor: "hover:bg-[#6b520e]",
-    lightBg: "bg-[#f5e6c8]",
   },
   commercial: {
-    name: "Assistente Comercial",
+    name: "PiriComercial",
     description: "Análises estatísticas e insights comerciais",
     icon: BarChart3,
     gradient: "from-[#3d5a6b] to-[#4a6b7c]",
     bgColor: "bg-[#3d5a6b]",
-    hoverColor: "hover:bg-[#2d4a5b]",
-    lightBg: "bg-[#d4dfe5]",
   },
 };
 
@@ -62,6 +54,7 @@ export function ChatArea() {
   const messages = useChatMessages();
   const { setSidebarOpen, addMessage, isLoading, setIsLoading, updateChatTitle, currentChatId } = useChatStore();
   const [input, setInput] = useState("");
+  const [currentAgent, setCurrentAgent] = useState<Exclude<AgentType, 'auto'> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -90,26 +83,35 @@ export function ChatArea() {
     setIsLoading(true);
 
     try {
+      const isAutoMode = currentChat?.agentType === 'auto';
+      
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
-          agentType: currentChat?.agentType || "legal",
+          agentType: isAutoMode ? undefined : currentChat?.agentType,
           chatHistory: messages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
+          autoOrchestrate: isAutoMode,
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
+        // Se modo auto, mostrar qual agente foi usado
+        if (isAutoMode && data.agentType) {
+          setCurrentAgent(data.agentType);
+        }
+
         addMessage(currentChatId, {
           role: "assistant",
           content: data.response,
           sources: data.sources,
+          agentUsed: data.agentType,
         });
       } else {
         addMessage(currentChatId, {
@@ -139,22 +141,38 @@ export function ChatArea() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[#faf8f4] p-8">
         <div className="text-center max-w-lg">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#1a4d2e] to-[#2d5a3d] flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914] flex items-center justify-center">
             <Sparkles className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold mb-2 text-[#1a3d2e]">Bem-vindo ao PiriChat</h2>
           <p className="text-[#5a6b5e] mb-6">
             Sua plataforma de IA especializada em saúde suplementar e seguros saúde.
           </p>
-          <div className="grid grid-cols-1 gap-3">
+          
+          {/* Conversa Inteligente - Destaque */}
+          <Button
+            onClick={() => useChatStore.getState().createChat("auto")}
+            className="w-full justify-start gap-3 h-auto py-4 bg-gradient-to-r from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914] hover:opacity-90 mb-3"
+          >
+            <Sparkles className="h-5 w-5" />
+            <div className="text-left">
+              <p className="font-medium">Nova Conversa Inteligente</p>
+              <p className="text-xs opacity-80">A IA escolhe automaticamente o melhor especialista</p>
+            </div>
+          </Button>
+          
+          <p className="text-xs text-[#5a6b5e] mb-3">— ou escolha um especialista —</p>
+          
+          <div className="grid grid-cols-1 gap-2">
             <Button
               onClick={() => useChatStore.getState().createChat("legal")}
-              className="justify-start gap-3 h-auto py-3 bg-[#1a4d2e] hover:bg-[#153d24]"
+              variant="outline"
+              className="justify-start gap-3 h-auto py-3 border-[#1a4d2e] text-[#1a4d2e] hover:bg-[#1a4d2e]/10"
             >
               <Scale className="h-5 w-5" />
               <div className="text-left">
                 <p className="font-medium">Chat Jurídico ANS</p>
-                <p className="text-xs opacity-80">Regulação e normas da saúde suplementar</p>
+                <p className="text-xs opacity-70">Regulação e normas</p>
               </div>
             </Button>
             <Button
@@ -165,7 +183,7 @@ export function ChatArea() {
               <FileCheck className="h-5 w-5" />
               <div className="text-left">
                 <p className="font-medium">Chat de Contratos</p>
-                <p className="text-xs opacity-80">Gaps, ofensores e necessidades contratuais</p>
+                <p className="text-xs opacity-70">Gaps, ofensores e necessidades</p>
               </div>
             </Button>
             <Button
@@ -176,7 +194,7 @@ export function ChatArea() {
               <BarChart3 className="h-5 w-5" />
               <div className="text-left">
                 <p className="font-medium">Chat Comercial</p>
-                <p className="text-xs opacity-80">Análises e estatísticas do setor</p>
+                <p className="text-xs opacity-70">Análises e estatísticas</p>
               </div>
             </Button>
           </div>
@@ -185,8 +203,10 @@ export function ChatArea() {
     );
   }
 
-  const agent = agentInfo[currentChat.agentType];
-  const AgentIcon = agent.icon;
+  const isAutoMode = currentChat.agentType === 'auto';
+  const lastMessageAgent = messages.length > 0 ? messages[messages.length - 1]?.agentUsed : null;
+  const displayAgent = isAutoMode ? (lastMessageAgent || currentAgent) : currentChat.agentType;
+  const agent = displayAgent && displayAgent !== 'auto' ? agentInfo[displayAgent] : null;
 
   return (
     <div className="flex-1 flex flex-col bg-white">
@@ -201,13 +221,37 @@ export function ChatArea() {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br", agent.gradient)}>
-            <AgentIcon className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h1 className="font-semibold text-[#1a3d2e]">{agent.name}</h1>
-            <p className="text-xs text-[#5a6b5e]">{agent.description}</p>
-          </div>
+          
+          {isAutoMode ? (
+            <>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914]">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-semibold text-[#1a3d2e]">Conversa Inteligente</h1>
+                <p className="text-xs text-[#5a6b5e]">
+                  {agent ? (
+                    <span className="flex items-center gap-1">
+                      Respondendo como: <span className="font-medium text-[#1a4d2e]">{agent.name}</span>
+                      <ArrowRightLeft className="h-3 w-3" />
+                    </span>
+                  ) : (
+                    "A IA escolherá o melhor especialista"
+                  )}
+                </p>
+              </div>
+            </>
+          ) : agent ? (
+            <>
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br", agent.gradient)}>
+                <agent.icon className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-semibold text-[#1a3d2e]">{agent.name}</h1>
+                <p className="text-xs text-[#5a6b5e]">{agent.description}</p>
+              </div>
+            </>
+          ) : null}
         </div>
       </header>
 
@@ -216,60 +260,51 @@ export function ChatArea() {
         <div className="max-w-3xl mx-auto space-y-4">
           {messages.length === 0 ? (
             <div className="text-center py-12">
-              <div className={cn("w-12 h-12 mx-auto mb-3 rounded-xl flex items-center justify-center bg-gradient-to-br", agent.gradient)}>
-                <AgentIcon className="h-6 w-6 text-white" />
-              </div>
+              {isAutoMode ? (
+                <div className="w-12 h-12 mx-auto mb-3 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914]">
+                  <Sparkles className="h-6 w-6 text-white" />
+                </div>
+              ) : agent ? (
+                <div className={cn("w-12 h-12 mx-auto mb-3 rounded-xl flex items-center justify-center bg-gradient-to-br", agent.gradient)}>
+                  <agent.icon className="h-6 w-6 text-white" />
+                </div>
+              ) : null}
               <p className="text-[#5a6b5e] mb-2">Como posso ajudar você hoje?</p>
               <div className="flex flex-wrap justify-center gap-2 mt-4">
-                {currentChat.agentType === "legal" ? (
-                  <>
-                    <SuggestionChip onClick={() => setInput("O que diz a RN 465 sobre reajustes?")}>
-                      RN 465 - Reajustes
-                    </SuggestionChip>
-                    <SuggestionChip onClick={() => setInput("Explique as mudanças na RN 623")}>
-                      RN 623 - Mudanças
-                    </SuggestionChip>
-                    <SuggestionChip onClick={() => setInput("Quais são as obrigações da ANS para operadoras?")}>
-                      Obrigações ANS
-                    </SuggestionChip>
-                  </>
-                ) : currentChat.agentType === "contract" ? (
-                  <>
-                    <SuggestionChip onClick={() => setInput("Analise este contrato e identifique os principais gaps de cobertura")}>
-                      Análise de GAPS
-                    </SuggestionChip>
-                    <SuggestionChip onClick={() => setInput("Quais cláusulas são consideradas ofensores em contratos de saúde?")}>
-                      Ofensores Comuns
-                    </SuggestionChip>
-                    <SuggestionChip onClick={() => setInput("Como identificar necessidades do cliente vs plano contratado?")}>
-                      Análise de Necessidades
-                    </SuggestionChip>
-                  </>
-                ) : (
-                  <>
-                    <SuggestionChip onClick={() => setInput("Analise a sinistralidade do setor em 2024")}>
-                      Sinistralidade 2024
-                    </SuggestionChip>
-                    <SuggestionChip onClick={() => setInput("Quais as tendências do mercado de saúde suplementar?")}>
-                      Tendências Mercado
-                    </SuggestionChip>
-                    <SuggestionChip onClick={() => setInput("Compare benefícios das principais operadoras")}>
-                      Comparativo Operadoras
-                    </SuggestionChip>
-                  </>
-                )}
+                <SuggestionChip onClick={() => setInput("Analise este contrato e identifique os principais gaps de cobertura")}>
+                  Análise de Contrato
+                </SuggestionChip>
+                <SuggestionChip onClick={() => setInput("O que diz a RN 465 sobre reajustes?")}>
+                  RN 465 - Reajustes
+                </SuggestionChip>
+                <SuggestionChip onClick={() => setInput("Qual a tendência do mercado de saúde suplementar em 2025?")}>
+                  Tendências 2025
+                </SuggestionChip>
               </div>
             </div>
           ) : (
             messages.map((message) => (
-              <MessageBubble key={message.id} message={message} agentType={currentChat.agentType} />
+              <MessageBubble 
+                key={message.id} 
+                message={message} 
+                showAgentBadge={isAutoMode}
+              />
             ))
           )}
 
           {isLoading && (
             <div className="flex items-start gap-3">
-              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br", agent.gradient)}>
-                <AgentIcon className="h-4 w-4 text-white" />
+              <div className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center",
+                isAutoMode 
+                  ? "bg-gradient-to-br from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914]"
+                  : agent ? `bg-gradient-to-br ${agent.gradient}` : "bg-[#1a4d2e]"
+              )}>
+                {isAutoMode ? (
+                  <Sparkles className="h-4 w-4 text-white" />
+                ) : agent ? (
+                  <agent.icon className="h-4 w-4 text-white" />
+                ) : null}
               </div>
               <div className="bg-[#f0ebe0] rounded-2xl rounded-tl-sm px-4 py-3">
                 <div className="loading-dots">
@@ -292,7 +327,7 @@ export function ChatArea() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Digite sua mensagem..."
+              placeholder={isAutoMode ? "Digite sua pergunta... A IA escolherá o melhor especialista" : "Digite sua mensagem..."}
               className="min-h-[44px] max-h-32 resize-none border-[#d4c8b0] focus:border-[#1a4d2e] focus:ring-[#1a4d2e]"
               rows={1}
             />
@@ -301,11 +336,11 @@ export function ChatArea() {
               disabled={!input.trim() || isLoading}
               className={cn(
                 "px-4",
-                currentChat.agentType === "legal"
-                  ? "bg-[#1a4d2e] hover:bg-[#153d24]"
-                  : currentChat.agentType === "contract"
-                  ? "bg-[#8b6914] hover:bg-[#6b520e]"
-                  : "bg-[#3d5a6b] hover:bg-[#2d4a5b]"
+                isAutoMode
+                  ? "bg-gradient-to-r from-[#1a4d2e] to-[#8b6914] hover:opacity-90"
+                  : agent
+                  ? agent.bgColor
+                  : "bg-[#1a4d2e] hover:bg-[#153d24]"
               )}
             >
               <Send className="h-4 w-4" />
@@ -322,27 +357,29 @@ export function ChatArea() {
 
 function MessageBubble({
   message,
-  agentType,
+  showAgentBadge,
 }: {
-  message: { role: string; content: string; sources?: string[] };
-  agentType: AgentType;
+  message: { role: string; content: string; sources?: string[]; agentUsed?: string };
+  showAgentBadge?: boolean;
 }) {
   const isUser = message.role === "user";
-  const agent = agentInfo[agentType];
-  const AgentIcon = agent.icon;
+  const agentUsed = message.agentUsed && message.agentUsed !== 'auto' ? agentInfo[message.agentUsed as Exclude<AgentType, 'auto'>] : null;
+  const AgentIcon = agentUsed?.icon;
 
   return (
     <div className={cn("flex items-start gap-3", isUser && "flex-row-reverse")}>
       <div
         className={cn(
           "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-          isUser ? "bg-[#e8e0d0]" : cn("bg-gradient-to-br", agent.gradient)
+          isUser ? "bg-[#e8e0d0]" : agentUsed ? `bg-gradient-to-br ${agentUsed.gradient}` : "bg-[#1a4d2e]"
         )}
       >
         {isUser ? (
           <User className="h-4 w-4 text-[#1a3d2e]" />
-        ) : (
+        ) : AgentIcon ? (
           <AgentIcon className="h-4 w-4 text-white" />
+        ) : (
+          <Sparkles className="h-4 w-4 text-white" />
         )}
       </div>
       <div
@@ -353,6 +390,12 @@ function MessageBubble({
             : "bg-[#f0ebe0] rounded-tl-sm"
         )}
       >
+        {!isUser && showAgentBadge && agentUsed && (
+          <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-[#d4c8b0]/50">
+            <AgentIcon className="h-3 w-3 text-[#1a4d2e]" />
+            <span className="text-xs font-medium text-[#1a4d2e]">{agentUsed.name}</span>
+          </div>
+        )}
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (

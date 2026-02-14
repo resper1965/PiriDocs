@@ -13,6 +13,7 @@ import {
   Scale,
   BarChart3,
   FileCheck,
+  Sparkles,
   ChevronLeft,
   FileText,
   Users,
@@ -21,15 +22,24 @@ import {
 import { useState } from "react";
 
 const agentIcons = {
+  auto: Sparkles,
   legal: Scale,
   commercial: BarChart3,
   contract: FileCheck,
 };
 
 const agentColors = {
-  legal: "bg-[#1a4d2e]",      // Verde escuro
-  commercial: "bg-[#3d5a6b]", // Azul acinzentado
-  contract: "bg-[#8b6914]",   // Âmbar/Dourado
+  auto: "bg-gradient-to-r from-[#1a4d2e] via-[#8b6914] to-[#3d5a6b]",
+  legal: "bg-[#1a4d2e]",
+  commercial: "bg-[#3d5a6b]",
+  contract: "bg-[#8b6914]",
+};
+
+const agentDotColors = {
+  auto: "bg-gradient-to-r from-[#1a4d2e] to-[#8b6914]",
+  legal: "bg-[#1a4d2e]",
+  commercial: "bg-[#3d5a6b]",
+  contract: "bg-[#8b6914]",
 };
 
 export function Sidebar() {
@@ -53,9 +63,10 @@ export function Sidebar() {
   };
 
   const groupedChats = {
+    auto: chats.filter((c) => c.agentType === "auto"),
     legal: chats.filter((c) => c.agentType === "legal"),
-    commercial: chats.filter((c) => c.agentType === "commercial"),
     contract: chats.filter((c) => c.agentType === "contract"),
+    commercial: chats.filter((c) => c.agentType === "commercial"),
   };
 
   return (
@@ -97,12 +108,31 @@ export function Sidebar() {
 
         {/* New Chat Buttons */}
         <div className="p-3 space-y-2">
+          {/* Conversa Inteligente - Destaque */}
+          <Button
+            onClick={() => handleNewChat("auto")}
+            className="w-full justify-start gap-2 bg-gradient-to-r from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914] hover:opacity-90 shadow-md"
+          >
+            <Sparkles className="h-4 w-4" />
+            Nova Conversa Inteligente
+          </Button>
+          
+          <div className="relative my-3">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-[#d4c8b0]" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-2 text-[#5a6b5e]">ou escolha especialista</span>
+            </div>
+          </div>
+
           <Button
             onClick={() => handleNewChat("legal")}
-            className="w-full justify-start gap-2 bg-[#1a4d2e] hover:bg-[#153d24]"
+            variant="outline"
+            className="w-full justify-start gap-2 border-[#1a4d2e] text-[#1a4d2e] hover:bg-[#1a4d2e]/10"
           >
             <Scale className="h-4 w-4" />
-            Novo Chat Jurídico
+            Chat Jurídico
           </Button>
           <Button
             onClick={() => handleNewChat("contract")}
@@ -110,7 +140,7 @@ export function Sidebar() {
             className="w-full justify-start gap-2 border-[#8b6914] text-[#8b6914] hover:bg-[#8b6914]/10"
           >
             <FileCheck className="h-4 w-4" />
-            Novo Chat Contratos
+            Chat Contratos
           </Button>
           <Button
             onClick={() => handleNewChat("commercial")}
@@ -118,7 +148,7 @@ export function Sidebar() {
             className="w-full justify-start gap-2 border-[#3d5a6b] text-[#3d5a6b] hover:bg-[#3d5a6b]/10"
           >
             <BarChart3 className="h-4 w-4" />
-            Novo Chat Comercial
+            Chat Comercial
           </Button>
         </div>
 
@@ -152,6 +182,26 @@ export function Sidebar() {
         <ScrollArea className="flex-1">
           {activeTab === "chats" ? (
             <div className="p-2 space-y-4">
+              {/* Auto/Intelligent Chats */}
+              {groupedChats.auto.length > 0 && (
+                <div>
+                  <p className="px-2 py-1 text-xs font-medium text-[#5a6b5e] uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Inteligente
+                  </p>
+                  <div className="space-y-1">
+                    {groupedChats.auto.map((chat) => (
+                      <ChatItem
+                        key={chat.id}
+                        chat={chat}
+                        isActive={chat.id === currentChatId}
+                        onClick={() => setCurrentChatId(chat.id)}
+                        onDelete={() => deleteChat(chat.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Contract Chats */}
               {groupedChats.contract.length > 0 && (
                 <div>
@@ -276,7 +326,7 @@ function ChatItem({
   onDelete: () => void;
 }) {
   const Icon = chat ? agentIcons[chat.agentType] : MessageSquare;
-  const color = chat ? agentColors[chat.agentType] : "bg-[#5a6b5e]";
+  const color = chat ? agentDotColors[chat.agentType] : "bg-[#5a6b5e]";
 
   return (
     <div

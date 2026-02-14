@@ -6,7 +6,7 @@ import { PiriDocsPanel } from "@/components/piridocs/piridocs-panel";
 import { useChatStore } from "@/store/chat-store";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
-import { Menu, FileText, Heart, Scale, BarChart3, FileCheck, Leaf, LogOut, ExternalLink } from "lucide-react";
+import { Menu, FileText, Heart, Scale, BarChart3, FileCheck, Leaf, LogOut, ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -62,12 +62,16 @@ export function PiriChatApp() {
           </div>
 
           {/* Center: Brand & Agents */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
             <div className="flex items-center gap-1">
               <Leaf className="h-3 w-3 text-[#1a4d2e]" />
-              <span className="font-medium text-[#1a4d2e]">PiriGones Platform</span>
+              <span className="font-medium text-[#1a4d2e]">PiriGones</span>
             </div>
             <span className="text-[#d4c8b0]">|</span>
+            <span className="flex items-center gap-1">
+              <Sparkles className="h-3 w-3 text-[#1a4d2e]" />
+              Auto
+            </span>
             <span className="flex items-center gap-1">
               <Scale className="h-3 w-3 text-[#1a4d2e]" />
               Jurídico

@@ -2,10 +2,125 @@ import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
 
 // ============================================
-// AGENTES PIRIGONES PLATFORM
+// TIPOS DE AGENTES
 // ============================================
 
-// Agente Jurídico - Foco em regulação ANS
+export type AgentType = "legal" | "commercial" | "contract";
+
+// ============================================
+// ORQUESTRADOR - Classifica qual agente usar
+// ============================================
+
+const AGENT_KEYWORDS: Record<AgentType, { keywords: string[]; weight: number }> = {
+  legal: {
+    keywords: [
+      "rn", "ri", "ans", "susep", "lei", "regulação", "norma", "resolução",
+      "normativa", "institucional", "diretriz", "portaria", "obrigação",
+      "infração", "penalidade", "fiscalização", "autorização", "ans",
+      "agência nacional", "regulador", "conformidade", "legal", "jurídico"
+    ],
+    weight: 1.0,
+  },
+  contract: {
+    keywords: [
+      "contrato", "gap", "gaps", "ofensor", "ofensores", "cláusula", "cobertura",
+      "carência", "reajuste", "coper", "coparticipação", "rede credenciada",
+      "plano", "apólice", "sinistro", "prazo", "vigência", "renovação",
+      "cancelamento", "rescisão", "direitos", "deveres", "exclusão",
+      "limite", "franquia", "necessidades", "lacuna", "problema", "análise contratual"
+    ],
+    weight: 1.0,
+  },
+  commercial: {
+    keywords: [
+      "mercado", "tendência", "tendências", "sinistralidade", "análise", "estatística",
+      "comparativo", "benchmark", "operadora", "preço", "custo", "valor",
+      "crescimento", "receita", "despesa", "margem", "lucro", "portfólio",
+      "vendas", "retenção", "cliente", "perfil", "demográfico", "projeção"
+    ],
+    weight: 1.0,
+  },
+};
+
+// Palavras que indicam necessidade de múltiplos agentes
+const MULTI_AGENT_INDICATORS = [
+  "completa", "geral", "tudo", "visão", "panorama", "abrangente", "detalhada"
+];
+
+// Classifica a mensagem e retorna o agente mais apropriado
+export function orchestrateAgent(message: string): AgentType {
+  const lowerMsg = message.toLowerCase();
+  const scores: Record<AgentType, number> = {
+    legal: 0,
+    contract: 0,
+    commercial: 0,
+  };
+
+  // Calcular score para cada agente
+  for (const [agent, config] of Object.entries(AGENT_KEYWORDS)) {
+    for (const keyword of config.keywords) {
+      if (lowerMsg.includes(keyword)) {
+        scores[agent as AgentType] += config.weight;
+      }
+    }
+  }
+
+  // Verificar se há indicador de múltiplos agentes
+  const isMultiAgent = MULTI_AGENT_INDICATORS.some(k => lowerMsg.includes(k));
+
+  // Encontrar o agente com maior score
+  let maxScore = 0;
+  let bestAgent: AgentType = "contract"; // Default
+
+  for (const [agent, score] of Object.entries(scores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      bestAgent = agent as AgentType;
+    }
+  }
+
+  // Se não houve match claro, usar LLM para classificar
+  if (maxScore === 0) {
+    return "contract"; // Default para perguntas genéricas
+  }
+
+  return bestAgent;
+}
+
+// Classificação usando LLM (para casos ambíguos)
+export async function orchestrateWithLLM(message: string): Promise<AgentType> {
+  try {
+    const zai = await ZAI.create();
+    
+    const classificationPrompt = `Classifique a seguinte pergunta em uma das categorias:
+
+1. LEGAL - Perguntas sobre leis, normas ANS, regulação, SUSEP
+2. CONTRACT - Perguntas sobre contratos, coberturas, cláusulas, gaps, ofensores
+3. COMMERCIAL - Perguntas sobre mercado, estatísticas, tendências, análises comerciais
+
+Pergunta: "${message}"
+
+Responda APENAS com uma palavra: LEGAL, CONTRACT ou COMMERCIAL`;
+
+    const completion = await zai.chat.completions.create({
+      messages: [{ role: "user", content: classificationPrompt }],
+      thinking: { type: "disabled" },
+    });
+
+    const response = completion.choices[0]?.message?.content?.toUpperCase().trim();
+    
+    if (response === "LEGAL") return "legal";
+    if (response === "COMMERCIAL") return "commercial";
+    return "contract";
+  } catch {
+    return "contract";
+  }
+}
+
+// ============================================
+// PROMPTS DOS AGENTES
+// ============================================
+
 const LEGAL_AGENT_PROMPT = `Você é o PiriJurídico, um assistente especializado em direito e regulação do setor de saúde suplementar e seguros saúde no Brasil.
 
 ## Sua Especialização:
@@ -37,7 +152,6 @@ const LEGAL_AGENT_PROMPT = `Você é o PiriJurídico, um assistente especializad
 
 Sempre responda em português brasileiro, de forma clara e profissional.`;
 
-// Agente Comercial - Foco em análise de mercado
 const COMMERCIAL_AGENT_PROMPT = `Você é o PiriComercial, um assistente especializado em análise comercial e estatística do setor de saúde suplementar e seguros saúde no Brasil.
 
 ## Sua Especialização:
@@ -68,7 +182,6 @@ const COMMERCIAL_AGENT_PROMPT = `Você é o PiriComercial, um assistente especia
 Sempre responda em português brasileiro, de forma clara e profissional.
 Use markdown para estruturar respostas (tabelas, listas, negrito, etc.).`;
 
-// Agente de Contratos - Foco em gestão e análise de contratos
 const CONTRACT_AGENT_PROMPT = `Você é o PiriContratos, um assistente especializado em análise e gestão de contratos de saúde suplementar e seguros saúde no Brasil.
 
 ## Sua Especialização:
@@ -138,12 +251,21 @@ const CONTRACT_AGENT_PROMPT = `Você é o PiriContratos, um assistente especiali
 
 Sempre responda em português brasileiro, de forma clara, estruturada e profissional.`;
 
-// Mapa de prompts por tipo de agente
-const AGENT_PROMPTS: Record<string, string> = {
+const AGENT_PROMPTS: Record<AgentType, string> = {
   legal: LEGAL_AGENT_PROMPT,
   commercial: COMMERCIAL_AGENT_PROMPT,
   contract: CONTRACT_AGENT_PROMPT,
 };
+
+const AGENT_NAMES: Record<AgentType, string> = {
+  legal: "PiriJurídico",
+  commercial: "PiriComercial",
+  contract: "PiriContratos",
+};
+
+// ============================================
+// API ROUTE
+// ============================================
 
 interface Message {
   role: "user" | "assistant";
@@ -153,10 +275,11 @@ interface Message {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, agentType, chatHistory } = body as {
+    const { message, agentType, chatHistory, autoOrchestrate } = body as {
       message: string;
-      agentType: "legal" | "commercial" | "contract";
+      agentType?: AgentType;
       chatHistory: Message[];
+      autoOrchestrate?: boolean;
     };
 
     if (!message) {
@@ -166,17 +289,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determinar qual agente usar
+    let selectedAgent: AgentType;
+    
+    if (autoOrchestrate || !agentType) {
+      // Modo orquestrador - classificar automaticamente
+      selectedAgent = orchestrateAgent(message);
+    } else {
+      // Modo manual - usar agente especificado
+      selectedAgent = agentType;
+    }
+
     // Initialize ZAI
     const zai = await ZAI.create();
 
-    // Get system prompt for the agent type
-    const systemPrompt = AGENT_PROMPTS[agentType] || LEGAL_AGENT_PROMPT;
+    // Get system prompt for the agent
+    const systemPrompt = AGENT_PROMPTS[selectedAgent];
     
     const messages: Array<{ role: string; content: string }> = [
       { role: "assistant", content: systemPrompt },
     ];
 
-    // Add chat history for context (keep last 10 messages for context)
+    // Add chat history for context
     const recentHistory = chatHistory?.slice(-10) || [];
     for (const msg of recentHistory) {
       messages.push({
@@ -200,7 +334,7 @@ export async function POST(request: NextRequest) {
       throw new Error("Resposta vazia do modelo");
     }
 
-    // Extract potential sources from response (simple heuristic)
+    // Extract sources
     const sources: string[] = [];
     const rnMatches = response.match(/RN\s*\d+/gi);
     const riMatches = response.match(/RI\s*\d+/gi);
@@ -216,7 +350,9 @@ export async function POST(request: NextRequest) {
       success: true,
       response,
       sources: sources.slice(0, 5),
-      agentType,
+      agentType: selectedAgent,
+      agentName: AGENT_NAMES[selectedAgent],
+      orchestrated: autoOrchestrate || !agentType,
     });
   } catch (error) {
     console.error("Chat API error:", error);
