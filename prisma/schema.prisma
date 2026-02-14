@@ -1,0 +1,201 @@
+// PiriGones Platform - Schema
+// Arquitetura de documentos separada: Base de Conhecimento do Setor vs Documentos de Clientes
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USUÁRIOS E AUTENTICAÇÃO
+// ============================================
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  password     String?
+  role         String     @default("broker") // broker, admin
+  avatar       String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  clients      Client[]
+  chats        Chat[]
+  uploadedDocs KnowledgeBase[]  @relation("UploadedBy")
+}
+
+// ============================================
+// CLIENTES (isolamento completo de dados)
+// ============================================
+
+model Client {
+  id           String     @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  cnpj         String?
+  notes        String?
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents    ClientDocument[]
+  chats        Chat[]
+}
+
+// ============================================
+// CHATS (com contexto vetorial)
+// ============================================
+
+model Chat {
+  id           String     @id @default(cuid())
+  title        String?
+  agentType    String     @default("legal") // legal, commercial
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId     String?
+  client       Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  messages     Message[]
+  
+  // Referências vetoriais usadas no contexto
+  vectorContext String?   // JSON com IDs dos chunks relevantes
+}
+
+model Message {
+  id           String     @id @default(cuid())
+  role         String     // user, assistant
+  content      String
+  createdAt    DateTime   @default(now())
+  
+  chatId       String
+  chat         Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  
+  // RAG Sources - quais chunks foram usados
+  sources      String?    // JSON array: [{type: "kb"|"client", id: "...", chunkIndex: 0}]
+}
+
+// ============================================
+// BASE DE CONHECIMENTO DO SETOR (COMPARTILHADA)
+// ============================================
+
+// Documentos oficiais, portarias ANS, tabelas de operadoras, etc.
+// Acessível por TODOS os usuários da plataforma
+
+model KnowledgeBase {
+  id           String     @id @default(cuid())
+  name         String
+  type         String     // ans_portaria, ans_rn, ans_ri, operator_table, regulation, other
+  category     String?    // Classificação: ANS, SUSEP, Operadoras, etc.
+  description  String?    // Descrição do conteúdo
+  source       String?    // URL ou referência oficial
+  content      String     // Texto extraído
+  filePath     String?    // Arquivo original
+  fileSize     Int?
+  mimeType     String?
+  metadata     String?    // JSON com dados adicionais
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  uploadedById String?
+  uploadedBy   User?      @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  
+  // Embeddings para RAG
+  embeddings   KBEmbedding[]
+  
+  @@index([type])
+  @@index([category])
+}
+
+model KBEmbedding {
+  id           String     @id @default(cuid())
+  chunkIndex   Int        // Índice do chunk no documento
+  chunkText    String     // Texto do chunk
+  embedding    String     // Vetor serializado como JSON
+  createdAt    DateTime   @default(now())
+  
+  documentId   String
+  document     KnowledgeBase @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@index([documentId])
+}
+
+// ============================================
+// DOCUMENTOS DE CLIENTES (ISOLADOS)
+// ============================================
+
+// Documentos específicos de cada cliente
+// Acesso RESTRITO apenas ao corretor dono do cliente
+
+model ClientDocument {
+  id           String     @id @default(cuid())
+  name         String
+  type         String     // contract, policy, claim, invoice, report, other
+  category     String?    // Contrato, Apólice, Sinistro, Fatura, etc.
+  description  String?
+  content      String     // Texto extraído
+  filePath     String?
+  fileSize     Int?
+  mimeType     String?
+  metadata     String?    // JSON
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  clientId     String
+  client       Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  // Embeddings para RAG (isolados por cliente)
+  embeddings   ClientEmbedding[]
+  
+  @@index([clientId])
+  @@index([type])
+}
+
+model ClientEmbedding {
+  id           String     @id @default(cuid())
+  chunkIndex   Int
+  chunkText    String
+  embedding    String     // Vetor serializado
+  createdAt    DateTime   @default(now())
+  
+  documentId   String
+  document     ClientDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@index([documentId])
+}
+
+// ============================================
+// SESSÕES E CONTAS (Legacy/Auth)
+// ============================================
+
+model Session {
+  id           String     @id @default(cuid())
+  sessionToken String     @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime   @default(now())
+}
+
+model Account {
+  id           String     @id @default(cuid())
+  userId       String
+  provider     String
+  providerAccountId String
+  accessToken  String?
+  refreshToken String?
+  expiresAt    Int?
+  createdAt    DateTime   @default(now())
+  
+  @@unique([provider, providerAccountId])
+}
