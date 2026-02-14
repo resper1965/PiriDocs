@@ -8,10 +8,10 @@ export interface Message {
   content: string;
   createdAt: Date;
   sources?: string[];
-  agentUsed?: AgentType; // Qual agente respondeu (útil no modo orquestrado)
+  agentUsed?: AgentType;
 }
 
-export type AgentType = 'legal' | 'commercial' | 'contract' | 'auto';
+export type AgentType = 'legal' | 'commercial' | 'contract' | 'aps' | 'auto';
 
 export interface Chat {
   id: string;
@@ -55,6 +55,10 @@ export const AGENT_CONFIG: Record<AgentType, { name: string; description: string
   auto: {
     name: 'Orquestrador Inteligente',
     description: 'A IA escolhe o melhor especialista automaticamente',
+  },
+  aps: {
+    name: 'Assistente de Saúde Primária',
+    description: 'Orientação sobre consultas, especialistas e acesso a saúde',
   },
   legal: {
     name: 'Assistente Jurídico ANS',
@@ -107,13 +111,11 @@ interface ChatState {
   setIsLoading: (loading: boolean) => void;
 }
 
-// Generate unique ID
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
-      // User
       user: {
         id: 'demo-user',
         name: 'Corretor Demo',
@@ -122,7 +124,6 @@ export const useChatStore = create<ChatState>()(
       },
       setUser: (user) => set({ user }),
       
-      // Chats
       chats: [],
       currentChatId: null,
       setCurrentChatId: (id) => set({ currentChatId: id }),
@@ -151,7 +152,6 @@ export const useChatStore = create<ChatState>()(
         currentChatId: state.currentChatId === id ? null : state.currentChatId,
       })),
       
-      // Messages
       addMessage: (chatId, message) => set((state) => ({
         chats: state.chats.map((chat) =>
           chat.id === chatId
@@ -176,7 +176,6 @@ export const useChatStore = create<ChatState>()(
         ),
       })),
       
-      // Clients
       clients: [],
       addClient: (client) => {
         const id = generateId();
@@ -194,7 +193,6 @@ export const useChatStore = create<ChatState>()(
         clients: state.clients.filter((c) => c.id !== id),
       })),
       
-      // Documents
       documents: [],
       addDocument: (doc) => {
         const id = generateId();
@@ -207,7 +205,6 @@ export const useChatStore = create<ChatState>()(
         documents: state.documents.filter((d) => d.id !== id),
       })),
       
-      // UI State
       sidebarOpen: true,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       piriDocsOpen: false,
@@ -227,7 +224,6 @@ export const useChatStore = create<ChatState>()(
   )
 );
 
-// Selector hooks
 export const useCurrentChat = () => {
   const chats = useChatStore((s) => s.chats);
   const currentChatId = useChatStore((s) => s.currentChatId);

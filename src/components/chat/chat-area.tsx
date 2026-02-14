@@ -11,6 +11,7 @@ import {
   Scale,
   BarChart3,
   FileCheck,
+  Heart,
   Sparkles,
   FileText,
   User,
@@ -26,6 +27,13 @@ const agentInfo: Record<Exclude<AgentType, 'auto'>, {
   gradient: string;
   bgColor: string;
 }> = {
+  aps: {
+    name: "PiriAPS",
+    description: "Orientação sobre consultas, especialistas e acesso a saúde",
+    icon: Heart,
+    gradient: "from-[#c44536] to-[#e05a4a]",
+    bgColor: "bg-[#c44536]",
+  },
   legal: {
     name: "PiriJurídico",
     description: "Especialista em direito e regulação da saúde suplementar",
@@ -102,7 +110,6 @@ export function ChatArea() {
       const data = await response.json();
 
       if (data.success) {
-        // Se modo auto, mostrar qual agente foi usado
         if (isAutoMode && data.agentType) {
           setCurrentAgent(data.agentType);
         }
@@ -149,19 +156,31 @@ export function ChatArea() {
             Sua plataforma de IA especializada em saúde suplementar e seguros saúde.
           </p>
           
-          {/* Conversa Inteligente - Destaque */}
+          {/* Conversa Inteligente */}
           <Button
             onClick={() => useChatStore.getState().createChat("auto")}
             className="w-full justify-start gap-3 h-auto py-4 bg-gradient-to-r from-[#1a4d2e] via-[#2d5a3d] to-[#8b6914] hover:opacity-90 mb-3"
           >
             <Sparkles className="h-5 w-5" />
             <div className="text-left">
-              <p className="font-medium">Nova Conversa Inteligente</p>
-              <p className="text-xs opacity-80">A IA escolhe automaticamente o melhor especialista</p>
+              <p className="font-medium">Conversa Inteligente</p>
+              <p className="text-xs opacity-80">A IA escolhe automaticamente o especialista</p>
+            </div>
+          </Button>
+
+          {/* APS - Saúde */}
+          <Button
+            onClick={() => useChatStore.getState().createChat("aps")}
+            className="w-full justify-start gap-3 h-auto py-4 bg-[#c44536] hover:bg-[#a33a2d] mb-3"
+          >
+            <Heart className="h-5 w-5" />
+            <div className="text-left">
+              <p className="font-medium">PiriAPS - Assistência Primária</p>
+              <p className="text-xs opacity-80">Orientação sobre consultas, especialistas e saúde</p>
             </div>
           </Button>
           
-          <p className="text-xs text-[#5a6b5e] mb-3">— ou escolha um especialista —</p>
+          <p className="text-xs text-[#5a6b5e] mb-3">— especialistas —</p>
           
           <div className="grid grid-cols-1 gap-2">
             <Button
@@ -271,15 +290,31 @@ export function ChatArea() {
               ) : null}
               <p className="text-[#5a6b5e] mb-2">Como posso ajudar você hoje?</p>
               <div className="flex flex-wrap justify-center gap-2 mt-4">
-                <SuggestionChip onClick={() => setInput("Analise este contrato e identifique os principais gaps de cobertura")}>
-                  Análise de Contrato
-                </SuggestionChip>
-                <SuggestionChip onClick={() => setInput("O que diz a RN 465 sobre reajustes?")}>
-                  RN 465 - Reajustes
-                </SuggestionChip>
-                <SuggestionChip onClick={() => setInput("Qual a tendência do mercado de saúde suplementar em 2025?")}>
-                  Tendências 2025
-                </SuggestionChip>
+                {currentChat.agentType === 'aps' ? (
+                  <>
+                    <SuggestionChip onClick={() => setInput("Estou com dor de cabeça forte há 3 dias, qual médico devo procurar?")}>
+                      Dor de cabeça
+                    </SuggestionChip>
+                    <SuggestionChip onClick={() => setInput("Como faço para agendar uma consulta com especialista pelo plano?")}>
+                      Agendar consulta
+                    </SuggestionChip>
+                    <SuggestionChip onClick={() => setInput("Quais exames preventivos devo fazer aos 40 anos?")}>
+                      Exames preventivos
+                    </SuggestionChip>
+                  </>
+                ) : (
+                  <>
+                    <SuggestionChip onClick={() => setInput("Analise este contrato e identifique os principais gaps de cobertura")}>
+                      Análise de Contrato
+                    </SuggestionChip>
+                    <SuggestionChip onClick={() => setInput("O que diz a RN 465 sobre reajustes?")}>
+                      RN 465 - Reajustes
+                    </SuggestionChip>
+                    <SuggestionChip onClick={() => setInput("Qual a tendência do mercado de saúde suplementar em 2025?")}>
+                      Tendências 2025
+                    </SuggestionChip>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -392,8 +427,8 @@ function MessageBubble({
       >
         {!isUser && showAgentBadge && agentUsed && (
           <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-[#d4c8b0]/50">
-            <AgentIcon className="h-3 w-3 text-[#1a4d2e]" />
-            <span className="text-xs font-medium text-[#1a4d2e]">{agentUsed.name}</span>
+            <AgentIcon className="h-3 w-3 text-[#1a3d2e]" />
+            <span className="text-xs font-medium text-[#1a3d2e]">{agentUsed.name}</span>
           </div>
         )}
         {isUser ? (

@@ -68,19 +68,23 @@ export function PiriChatApp() {
               <span className="font-medium text-[#1a4d2e]">PiriGones</span>
             </div>
             <span className="text-[#d4c8b0]">|</span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-0.5">
               <Sparkles className="h-3 w-3 text-[#1a4d2e]" />
               Auto
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-0.5">
+              <Heart className="h-3 w-3 text-[#c44536]" />
+              APS
+            </span>
+            <span className="flex items-center gap-0.5">
               <Scale className="h-3 w-3 text-[#1a4d2e]" />
               Jurídico
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-0.5">
               <FileCheck className="h-3 w-3 text-[#8b6914]" />
               Contratos
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-0.5">
               <BarChart3 className="h-3 w-3 text-[#3d5a6b]" />
               Comercial
             </span>

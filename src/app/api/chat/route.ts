@@ -5,7 +5,7 @@ import ZAI from "z-ai-web-dev-sdk";
 // TIPOS DE AGENTES
 // ============================================
 
-export type AgentType = "legal" | "commercial" | "contract";
+export type AgentType = "legal" | "commercial" | "contract" | "aps";
 
 // ============================================
 // ORQUESTRADOR - Classifica qual agente usar
@@ -16,7 +16,7 @@ const AGENT_KEYWORDS: Record<AgentType, { keywords: string[]; weight: number }> 
     keywords: [
       "rn", "ri", "ans", "susep", "lei", "regulação", "norma", "resolução",
       "normativa", "institucional", "diretriz", "portaria", "obrigação",
-      "infração", "penalidade", "fiscalização", "autorização", "ans",
+      "infração", "penalidade", "fiscalização", "autorização",
       "agência nacional", "regulador", "conformidade", "legal", "jurídico"
     ],
     weight: 1.0,
@@ -33,30 +33,36 @@ const AGENT_KEYWORDS: Record<AgentType, { keywords: string[]; weight: number }> 
   },
   commercial: {
     keywords: [
-      "mercado", "tendência", "tendências", "sinistralidade", "análise", "estatística",
+      "mercado", "tendência", "tendências", "sinistralidade", "estatística",
       "comparativo", "benchmark", "operadora", "preço", "custo", "valor",
       "crescimento", "receita", "despesa", "margem", "lucro", "portfólio",
       "vendas", "retenção", "cliente", "perfil", "demográfico", "projeção"
     ],
     weight: 1.0,
   },
+  aps: {
+    keywords: [
+      "médico", "médica", "doutor", "doutora", "especialista", "especialidade",
+      "sintoma", "sintomas", "dor", "consulta", "exame", "diagnóstico",
+      "tratamento", "hospital", "clínica", "pronto socorro", "urgência",
+      "emergência", "atenção primária", "ubs", "posto de saúde", "psf",
+      "clínico geral", "medicina de família", "encaminhamento", "refazer",
+      "carteirinha", "guia", "autorização", "procedimento", "saúde",
+      "assistência", "atendimento", "beneficiário", "paciente", "cuidado"
+    ],
+    weight: 1.2, // Peso maior para priorizar saúde
+  },
 };
 
-// Palavras que indicam necessidade de múltiplos agentes
-const MULTI_AGENT_INDICATORS = [
-  "completa", "geral", "tudo", "visão", "panorama", "abrangente", "detalhada"
-];
-
-// Classifica a mensagem e retorna o agente mais apropriado
 export function orchestrateAgent(message: string): AgentType {
   const lowerMsg = message.toLowerCase();
   const scores: Record<AgentType, number> = {
     legal: 0,
     contract: 0,
     commercial: 0,
+    aps: 0,
   };
 
-  // Calcular score para cada agente
   for (const [agent, config] of Object.entries(AGENT_KEYWORDS)) {
     for (const keyword of config.keywords) {
       if (lowerMsg.includes(keyword)) {
@@ -65,12 +71,8 @@ export function orchestrateAgent(message: string): AgentType {
     }
   }
 
-  // Verificar se há indicador de múltiplos agentes
-  const isMultiAgent = MULTI_AGENT_INDICATORS.some(k => lowerMsg.includes(k));
-
-  // Encontrar o agente com maior score
   let maxScore = 0;
-  let bestAgent: AgentType = "contract"; // Default
+  let bestAgent: AgentType = "aps"; // Default para APS (mais comum para usuários)
 
   for (const [agent, score] of Object.entries(scores)) {
     if (score > maxScore) {
@@ -79,42 +81,7 @@ export function orchestrateAgent(message: string): AgentType {
     }
   }
 
-  // Se não houve match claro, usar LLM para classificar
-  if (maxScore === 0) {
-    return "contract"; // Default para perguntas genéricas
-  }
-
   return bestAgent;
-}
-
-// Classificação usando LLM (para casos ambíguos)
-export async function orchestrateWithLLM(message: string): Promise<AgentType> {
-  try {
-    const zai = await ZAI.create();
-    
-    const classificationPrompt = `Classifique a seguinte pergunta em uma das categorias:
-
-1. LEGAL - Perguntas sobre leis, normas ANS, regulação, SUSEP
-2. CONTRACT - Perguntas sobre contratos, coberturas, cláusulas, gaps, ofensores
-3. COMMERCIAL - Perguntas sobre mercado, estatísticas, tendências, análises comerciais
-
-Pergunta: "${message}"
-
-Responda APENAS com uma palavra: LEGAL, CONTRACT ou COMMERCIAL`;
-
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: "user", content: classificationPrompt }],
-      thinking: { type: "disabled" },
-    });
-
-    const response = completion.choices[0]?.message?.content?.toUpperCase().trim();
-    
-    if (response === "LEGAL") return "legal";
-    if (response === "COMMERCIAL") return "commercial";
-    return "contract";
-  } catch {
-    return "contract";
-  }
 }
 
 // ============================================
@@ -251,16 +218,122 @@ const CONTRACT_AGENT_PROMPT = `Você é o PiriContratos, um assistente especiali
 
 Sempre responda em português brasileiro, de forma clara, estruturada e profissional.`;
 
+const APS_AGENT_PROMPT = `Você é o PiriAPS, um assistente especializado em orientar beneficiários de planos de saúde sobre assistência primária e acesso a serviços de saúde.
+
+## Sua Especialização:
+
+### Orientação sobre Assistência Primária:
+- Como acessar a rede credenciada do plano de saúde
+- Diferença entre clínico geral, médico de família e especialista
+- Quando ir ao pronto socorro vs. consulta agendada
+- Programa de saúde da família (PSF) e UBS
+- Atenção primária em planos de saúde
+
+### Encaminhamento Inteligente:
+- Identificar qual especialidade médica é mais adequada para cada sintoma
+- Orientar sobre exames e procedimentos que podem ser solicitados
+- Explicar o fluxo de encaminhamento do plano de saúde
+- Guias de autorização e como funcionam
+- Segunda opinião médica
+
+### Navegação do Sistema de Saúde:
+- Rede credenciada: como consultar e escolher profissionais
+- Diferença entre rede própria e rede credenciada
+- Consultas eletivas vs. urgência/emergência
+- Carências e como elas afetam o acesso
+- Cobertura ambulatorial vs. hospitalar
+
+### Orientações por Sintoma/Condição:
+- Sintomas comuns e qual especialista procurar
+- Quando é emergência (vermelho/amarelo) vs. atenção primária
+- Exames preventivos recomendados por idade
+- Vacinação e programas de prevenção
+- Acompanhamento de doenças crônicas
+
+### Direitos do Beneficiário:
+- Lei 9.656/98 - direitos básicos
+- Rol da ANS - coberturas obrigatórias
+- Como reclamar na ANS
+- Prazos para consultas e exames (RN 395)
+- Portabilidade de carências
+
+## Como Responder:
+
+### Estrutura de Orientação:
+1. **Classificação**: Identificar se é emergência ou atenção primária
+2. **Recomendação**: Qual especialista/serviço procurar
+3. **Como Acessar**: Passos práticos no plano de saúde
+4. **Documentos**: O que levar/solicitar
+5. **Prazos**: Tempos esperados conforme ANS
+6. **Observação**: Sinais de alerta (se aplicável)
+
+### Classificação de Urgência:
+- 🔴 **EMERGÊNCIA**: Procurar PS imediatamente
+- 🟡 **URGÊNCIA**: Atendimento em até 24h
+- 🟢 **ELETIVO**: Agendar consulta normal
+- 🔵 **PREVENÇÃO**: Check-up/routine
+
+### Tabela de Especialistas por Sintoma:
+| Sintoma/Condição | Especialista Primário | Quando Encaminhar |
+|------------------|----------------------|-------------------|
+| Febre, gripe, resfriado | Clínico Geral | Se persistir >7 dias |
+| Dor no peito | Cardiologista (urgência) | Imediatamente se forte |
+| Dor abdominal | Clínico Geral → Gastro | Se crônica |
+| Dor nas costas | Ortopedista | Se com formigamento |
+| Dor de cabeça | Neurologista | Se frequente/intensa |
+| Alterações na pele | Dermatologista | Se lesões suspeitas |
+| Problemas visuais | Oftalmologista | Rotina anual |
+| Check-up geral | Clínico Geral | Anual a partir 40 anos |
+
+## Exemplos de Interação:
+
+**Usuário:** "Estou com dor de cabeça forte há 3 dias"
+**Resposta:**
+> 🟡 **Urgência - Recomendação de Avaliação**
+>
+> **Especialista:** Neurologista ou Clínico Geral (inicial)
+>
+> **Sinais de Alerta** (procere PS imediatamente se):
+> - Dor súbita e muito forte ("pior dor da vida")
+> - Febre alta associada
+> - Rigidez no pescoço
+> - Confusão mental
+> - Visão dupla
+>
+> **Como agendar pelo plano:**
+> 1. Verifique neurologistas na rede credenciada
+> 2. Ligue para o telefone do plano na carteirinha
+> 3. Prazo ANS: até 10 dias para consulta eletiva
+>
+> **Se urgente:** Solicite guia de urgência junto à operadora
+
+## Contexto Importante:
+- Você atende beneficiários e corretores
+- Sempre priorize a segurança do paciente
+- Indique emergências claramente
+- Cite prazos da ANS quando relevante
+- Seja prático e objetivo
+- NÃO faça diagnósticos - apenas oriente
+
+## Aviso Importante:
+⚠️ **Você é um assistente de orientação, não um médico.** 
+Suas recomendações são informativas e não substituem avaliação médica profissional.
+Em casos de emergência, sempre oriente procurar atendimento médico imediato.
+
+Sempre responda em português brasileiro, de forma clara, acolhedora e profissional.`;
+
 const AGENT_PROMPTS: Record<AgentType, string> = {
   legal: LEGAL_AGENT_PROMPT,
   commercial: COMMERCIAL_AGENT_PROMPT,
   contract: CONTRACT_AGENT_PROMPT,
+  aps: APS_AGENT_PROMPT,
 };
 
 const AGENT_NAMES: Record<AgentType, string> = {
   legal: "PiriJurídico",
   commercial: "PiriComercial",
   contract: "PiriContratos",
+  aps: "PiriAPS",
 };
 
 // ============================================
@@ -289,28 +362,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determinar qual agente usar
     let selectedAgent: AgentType;
     
     if (autoOrchestrate || !agentType) {
-      // Modo orquestrador - classificar automaticamente
       selectedAgent = orchestrateAgent(message);
     } else {
-      // Modo manual - usar agente especificado
       selectedAgent = agentType;
     }
 
-    // Initialize ZAI
     const zai = await ZAI.create();
-
-    // Get system prompt for the agent
     const systemPrompt = AGENT_PROMPTS[selectedAgent];
     
     const messages: Array<{ role: string; content: string }> = [
       { role: "assistant", content: systemPrompt },
     ];
 
-    // Add chat history for context
     const recentHistory = chatHistory?.slice(-10) || [];
     for (const msg of recentHistory) {
       messages.push({
@@ -319,10 +385,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Add current message
     messages.push({ role: "user", content: message });
 
-    // Get completion
     const completion = await zai.chat.completions.create({
       messages: messages as Array<{ role: "user" | "assistant"; content: string }>,
       thinking: { type: "disabled" },
@@ -334,7 +398,6 @@ export async function POST(request: NextRequest) {
       throw new Error("Resposta vazia do modelo");
     }
 
-    // Extract sources
     const sources: string[] = [];
     const rnMatches = response.match(/RN\s*\d+/gi);
     const riMatches = response.match(/RI\s*\d+/gi);
