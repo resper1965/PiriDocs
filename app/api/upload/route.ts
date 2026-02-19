@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
-import { adminDb, FieldValue } from '@/lib/firebase/admin';
-import { VertexAIEmbeddings } from '@langchain/google-vertexai';
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { Document } from '@langchain/core/documents';
+import { adminDb } from '@/lib/firebase/admin';
 import pdfParse from 'pdf-parse';
-
-const embeddings = new VertexAIEmbeddings({ model: 'text-embedding-004' });
 
 export async function POST(req: Request) {
   try {
@@ -17,36 +12,48 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Dados faltando' }, { status: 400 });
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const pdfData = await pdfParse(buffer);
 
-    const rawDoc = new Document({
-      pageContent: pdfData.text,
-      metadata: { source: file.name, notebook_id: notebookId },
+    // Extrai texto página por página preservando numeração
+    const pages: string[] = [];
+    await pdfParse(buffer, {
+      pagerender: (pageData: any) =>
+        pageData.getTextContent().then((content: any) => {
+          let lastY: number | undefined;
+          let text = '';
+          for (const item of content.items as any[]) {
+            if (lastY === undefined || lastY === item.transform[5]) {
+              text += item.str;
+            } else {
+              text += '\n' + item.str;
+            }
+            lastY = item.transform[5];
+          }
+          pages.push(text.trim());
+          return text;
+        }),
     });
 
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
-    });
-    const chunks = await splitter.splitDocuments([rawDoc]);
+    if (pages.length === 0) {
+      const fallback = await pdfParse(buffer);
+      pages.push(fallback.text.trim());
+    }
 
-    const texts = chunks.map((c) => c.pageContent);
-    const vectors = await embeddings.embedDocuments(texts);
-
+    // Persiste cada página como documento individual no Firestore
     const batch = adminDb.batch();
-    chunks.forEach((chunk, i) => {
-      const ref = adminDb.collection('document_chunks').doc();
+    pages.forEach((text, i) => {
+      if (!text) return; // ignora páginas em branco
+      const ref = adminDb.collection('document_pages').doc();
       batch.set(ref, {
-        content: chunk.pageContent,
-        metadata: chunk.metadata,
         notebook_id: notebookId,
-        embedding: FieldValue.vector(vectors[i]),
+        filename: file.name,
+        page_num: i + 1,
+        text,
         created_at: new Date(),
       });
     });
     await batch.commit();
 
-    return NextResponse.json({ success: true, chunks: chunks.length });
+    return NextResponse.json({ success: true, pages: pages.length });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Erro no processamento' }, { status: 500 });

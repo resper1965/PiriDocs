@@ -8,19 +8,26 @@ Assistente jurídico com IA especializado em **Direito da Saúde Suplementar** e
 |---|---|
 | Framework | Next.js 14 (App Router) |
 | Auth | Firebase Authentication |
-| Banco de dados / Vector Store | Firestore (vector search nativo) |
-| LLM | Vertex AI — Gemini 1.5 Pro |
-| Embeddings | Vertex AI — text-embedding-004 |
+| Banco de dados | Firestore |
+| LLM | Vertex AI — Gemini 1.5 Flash |
 | PDF | pdf-parse |
 | Estilização | Tailwind CSS |
+
+## Por que sem RAG vetorial?
+
+Documentos jurídicos típicos (contratos ANS, RNs, pareceres) têm entre 20 e 200 páginas, equivalentes a 10K–100K tokens. O **Gemini 1.5 Flash possui janela de contexto de 1 milhão de tokens**, o suficiente para enviar o documento inteiro a cada consulta.
+
+Isso elimina a necessidade de chunking, embeddings e busca vetorial — reduzindo complexidade e latência — e permite que a Piri cite páginas com precisão (`[Fonte: Arquivo, Pág X]`).
+
+> Se o volume de documentos por notebook crescer a ponto de exceder o contexto disponível, o passo natural é adicionar RAG com Vertex AI Vector Search.
 
 ## Pré-requisitos
 
 - Node.js 18+
 - Projeto no [Firebase Console](https://console.firebase.google.com)
 - Projeto no [Google Cloud](https://console.cloud.google.com) com as APIs habilitadas:
-  - Vertex AI API
-  - Cloud Firestore API
+  - **Vertex AI API**
+  - **Cloud Firestore API**
 
 ## Setup
 
@@ -38,7 +45,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Preencha `.env.local` com as credenciais do Firebase e do Google Cloud (veja comentários no arquivo).
+Preencha `.env.local` com as credenciais do Firebase e do Google Cloud.
 
 ### 3. Configurar Firebase
 
@@ -47,25 +54,13 @@ No [Console Firebase](https://console.firebase.google.com):
 1. **Authentication** → Habilitar provedor **Email/Senha**
 2. **Firestore Database** → Criar banco em modo **produção**
 
-### 4. Criar índice vetorial no Firestore
+### 4. Criar índices compostos no Firestore
 
-No [Console GCP](https://console.cloud.google.com) → Firestore → Índices, crie:
+Na coleção `document_pages`, crie dois índices compostos (o console solicitará automaticamente ao executar as primeiras queries):
 
-| Campo | Configuração |
+| Campos | Ordem |
 |---|---|
-| Coleção | `document_chunks` |
-| Campo | `embedding` |
-| Dimensão | `768` |
-| Métrica | `COSINE` |
-
-Ou via CLI:
-
-```bash
-gcloud firestore indexes composite create \
-  --collection-group=document_chunks \
-  --field-config field-path=embedding,vector-config='{"dimension":"768","flat": "{}"}' \
-  --field-config field-path=notebook_id,order=ASCENDING
-```
+| `notebook_id` ASC + `filename` ASC + `page_num` ASC | Crescente |
 
 ### 5. Credenciais Vertex AI (desenvolvimento local)
 
@@ -86,9 +81,9 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 ```
 /login  →  Firebase Auth  →  cookie httpOnly (firebase-token)  →  /dashboard
-/dashboard  →  listar / criar notebooks (Firestore)
-/notebook/[id]  →  upload PDF  →  chunks + embeddings (Vertex AI)  →  Firestore
-               →  chat  →  findNearest (COSINE)  →  Gemini 1.5 Pro  →  resposta jurídica
+/dashboard  →  listar / criar notebooks (Firestore: notebooks)
+/notebook/[id]  →  upload PDF  →  páginas extraídas  →  Firestore (document_pages)
+               →  chat  →  todas as páginas do notebook  →  Gemini 1.5 Flash  →  resposta jurídica
 ```
 
 ## Coleções Firestore
@@ -100,18 +95,18 @@ Acesse [http://localhost:3000](http://localhost:3000).
 | `user_id` | string |
 | `created_at` | timestamp |
 
-### `document_chunks`
+### `document_pages`
 | Campo | Tipo |
 |---|---|
-| `content` | string |
-| `metadata` | map |
 | `notebook_id` | string |
-| `embedding` | vector (dim 768) |
+| `filename` | string |
+| `page_num` | number |
+| `text` | string |
 | `created_at` | timestamp |
 
 ## Deploy (Cloud Run)
 
-Em Cloud Run, as credenciais Vertex AI são automáticas via **Workload Identity** — não é necessário `GOOGLE_APPLICATION_CREDENTIALS`. Basta garantir que a service account do Cloud Run tenha os papéis:
+Em Cloud Run, as credenciais Vertex AI são automáticas via **Workload Identity**. A service account do Cloud Run precisa dos papéis:
 
 - `roles/aiplatform.user`
 - `roles/datastore.user`

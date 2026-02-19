@@ -1,32 +1,50 @@
 import { NextResponse } from 'next/server';
-import { adminDb, FieldValue } from '@/lib/firebase/admin';
+import { adminDb } from '@/lib/firebase/admin';
 import { ChatVertexAI } from '@langchain/google-vertexai';
-import { VertexAIEmbeddings } from '@langchain/google-vertexai';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { PIRI_PROMPT } from '@/lib/piri';
 
-const embeddings = new VertexAIEmbeddings({ model: 'text-embedding-004' });
-const model = new ChatVertexAI({ model: 'gemini-1.5-pro', temperature: 0.2 });
+// Gemini Flash: 1M tokens de contexto, mais rápido e barato que o Pro
+const model = new ChatVertexAI({ model: 'gemini-1.5-flash', temperature: 0.2 });
 
 export async function POST(req: Request) {
   try {
     const { query, notebookId } = await req.json();
 
-    const queryVector = await embeddings.embedQuery(query);
-
+    // Carrega todas as páginas do notebook ordenadas por arquivo e página
     const snapshot = await adminDb
-      .collection('document_chunks')
+      .collection('document_pages')
       .where('notebook_id', '==', notebookId)
-      .findNearest('embedding', FieldValue.vector(queryVector), {
-        limit: 4,
-        distanceMeasure: 'COSINE',
-      })
+      .orderBy('filename')
+      .orderBy('page_num')
       .get();
 
-    const relevantDocs = snapshot.docs.map((doc) => doc.data());
-    const context = relevantDocs.map((d) => d.content as string).join('\n\n');
+    if (snapshot.empty) {
+      return NextResponse.json({
+        response:
+          'Nenhum documento foi adicionado a este notebook ainda. Faça upload de um PDF para começar.',
+      });
+    }
+
+    // Monta contexto com marcadores de arquivo e página para citações exatas
+    let currentFile = '';
+    const parts: string[] = [];
+    for (const doc of snapshot.docs) {
+      const { filename, page_num, text } = doc.data() as {
+        filename: string;
+        page_num: number;
+        text: string;
+      };
+      if (filename !== currentFile) {
+        parts.push(`\n[Documento: ${filename}]`);
+        currentFile = filename;
+      }
+      parts.push(`[Página ${page_num}]\n${text}`);
+    }
+
+    const context = parts.join('\n');
 
     const prompt = PromptTemplate.fromTemplate(`
       ${PIRI_PROMPT}
@@ -39,10 +57,7 @@ export async function POST(req: Request) {
     const chain = RunnableSequence.from([prompt, model, new StringOutputParser()]);
     const response = await chain.invoke({ context, question: query });
 
-    return NextResponse.json({
-      response,
-      sources: relevantDocs.map((d) => d.metadata),
-    });
+    return NextResponse.json({ response });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Erro no processamento da IA' }, { status: 500 });
