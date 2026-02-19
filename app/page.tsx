@@ -1,9 +1,5 @@
-/** @type {import('postcss-load-config').Config} */
-const config = {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-};
+import { redirect } from 'next/navigation';
 
-export default config;
+export default function RootPage() {
+  redirect('/login');
+}

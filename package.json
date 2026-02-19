@@ -9,9 +9,10 @@
   },
   "dependencies": {
     "@langchain/community": "^0.0.55",
-    "@langchain/openai": "^0.0.28",
-    "@supabase/ssr": "latest",
-    "@supabase/supabase-js": "latest",
+    "@langchain/core": "^0.1.60",
+    "@langchain/google-vertexai": "^0.0.18",
+    "firebase": "^10.12.0",
+    "firebase-admin": "^12.2.0",
     "langchain": "^0.1.36",
     "lucide-react": "^0.378.0",
     "next": "14.1.4",

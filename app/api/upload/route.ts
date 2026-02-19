@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { OpenAIEmbeddings } from '@langchain/openai';
-import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
+import { adminDb, FieldValue } from '@/lib/firebase/admin';
+import { VertexAIEmbeddings } from '@langchain/google-vertexai';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { PDFLoader } from 'langchain/document_loaders/fs/pdf';
+import { Document } from '@langchain/core/documents';
+import pdfParse from 'pdf-parse';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const embeddings = new VertexAIEmbeddings({ model: 'text-embedding-004' });
 
 export async function POST(req: Request) {
   try {
@@ -16,24 +13,42 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     const notebookId = formData.get('notebookId') as string;
 
-    if (!file || !notebookId) return NextResponse.json({ error: 'Dados faltando' }, { status: 400 });
+    if (!file || !notebookId)
+      return NextResponse.json({ error: 'Dados faltando' }, { status: 400 });
 
-    const loader = new PDFLoader(file);
-    const docs = await loader.load();
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const pdfData = await pdfParse(buffer);
 
-    docs.forEach(doc => { doc.metadata.notebook_id = notebookId; });
+    const rawDoc = new Document({
+      pageContent: pdfData.text,
+      metadata: { source: file.name, notebook_id: notebookId },
+    });
 
-    const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
-    const splitDocs = await splitter.splitDocuments(docs);
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 1000,
+      chunkOverlap: 200,
+    });
+    const chunks = await splitter.splitDocuments([rawDoc]);
 
-    await SupabaseVectorStore.fromDocuments(
-      splitDocs,
-      new OpenAIEmbeddings(),
-      { client: supabaseAdmin, tableName: 'document_chunks' }
-    );
+    const texts = chunks.map((c) => c.pageContent);
+    const vectors = await embeddings.embedDocuments(texts);
 
-    return NextResponse.json({ success: true, chunks: splitDocs.length });
+    const batch = adminDb.batch();
+    chunks.forEach((chunk, i) => {
+      const ref = adminDb.collection('document_chunks').doc();
+      batch.set(ref, {
+        content: chunk.pageContent,
+        metadata: chunk.metadata,
+        notebook_id: notebookId,
+        embedding: FieldValue.vector(vectors[i]),
+        created_at: new Date(),
+      });
+    });
+    await batch.commit();
+
+    return NextResponse.json({ success: true, chunks: chunks.length });
   } catch (e) {
+    console.error(e);
     return NextResponse.json({ error: 'Erro no processamento' }, { status: 500 });
   }
 }
